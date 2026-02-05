@@ -2,10 +2,8 @@
   "name": "ceitcs-backend",
   "version": "1.0.0",
   "main": "server.js",
-  
-  "type": "module",
   "scripts": {
-    "start": "node api/index.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

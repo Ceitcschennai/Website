@@ -1,127 +1,131 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const Contact = require('./models/Contact');
-const Application = require('./models/application');
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const nodemailer = require("nodemailer");
-require('dotenv').config();
+require("dotenv").config();
 
+const Contact = require("./models/Contact");
+const Application = require("./models/application");
 
 const app = express();
-app.use(cors());
-app.use(express.json()); // Global JSON middleware
 
-// Multer setup for file uploads
+/* -------------------- MIDDLEWARE -------------------- */
+app.use(cors({ origin: "*" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+/* -------------------- MONGODB -------------------- */
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB Atlas connected"))
+  .catch((err) => console.error("❌ MongoDB error:", err));
+
+/* -------------------- NODEMAILER -------------------- */
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS, // Gmail App Password
+  },
+});
+
+transporter.verify((err) => {
+  if (err) console.error("❌ Email error:", err);
+  else console.log("✅ Email server ready");
+});
+
+/* -------------------- MULTER -------------------- */
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
     cb(null, uploadDir);
   },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
 });
 
 const upload = multer({ storage });
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => console.log('✅ MongoDB Atlas connected'))
-  .catch(err => console.error('❌ MongoDB connection error:', err));
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER, // xxx@gmail.com
-    pass: process.env.EMAIL_PASS, // App password
-  },
+/* -------------------- HEALTH CHECK -------------------- */
+app.get("/", (req, res) => {
+  res.send("🌐 Server is running");
 });
 
-// Basic route (health check)
-app.get('/', (req, res) => {
-  res.send('🌐 Server is running');
-});
+/* -------------------- APPLICATION FORM -------------------- */
+app.post(
+  "/api/applications",
+  upload.fields([
+    { name: "certificate", maxCount: 1 },
+    { name: "resume", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const { name, email, position, experience } = req.body;
 
-// Contact form route
+      if (!req.files?.certificate || !req.files?.resume) {
+        return res.status(400).json({ error: "Files missing" });
+      }
 
-app.post("/api/contact", async (req, res) => {
-  try {
-    const { user_name, user_email, user_phone, message } = req.body;
+      const certificate = req.files.certificate[0];
+      const resume = req.files.resume[0];
 
-    // Save to DB
-    await Contact.create(req.body);
+      const application = new Application({
+        name,
+        email,
+        position,
+        experience,
+        certificate: {
+          data: fs.readFileSync(certificate.path),
+          contentType: certificate.mimetype,
+          filename: certificate.originalname,
+        },
+        resume: {
+          data: fs.readFileSync(resume.path),
+          contentType: resume.mimetype,
+          filename: resume.originalname,
+        },
+      });
 
-    // Send Mail
-    await transporter.sendMail({
-      from: `"Website Contact" <${user_email}>`,
-      to: process.env.EMAIL_USER, // RECEIVER (xxx@gmail.com)
-      subject: "CeiTCS -New Contact Form Message",
-      html: `
-        <h3> Message Received</h3>
-        <p><b>Name:</b> ${user_name}</p>
-        <p><b>Email:</b> ${user_email}</p>
-        <p><b>Phone:</b> ${user_phone}</p>
-        <p><b>Message:</b><br/>${message}</p>
-      `,
-    });
+      await application.save();
 
-    res.status(200).json({ message: "Message sent successfully" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Mail sending failed" });
-  }
-});
-// Application submission route
-app.post('/api/applications', upload.fields([
-  { name: 'certificate', maxCount: 1 },
-  { name: 'resume', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const { name, email, position, experience } = req.body;
+      /* 📧 EMAIL TO APPLICANT */
+      await transporter.sendMail({
+        from: `"CeiTCS Careers" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "Application Received – CeiTCS",
+        html: `
+          <h2>Hello ${name},</h2>
+          <p>Your application has been received successfully.</p>
+          <p><b>Position:</b> ${position}</p>
+          <p><b>Experience:</b> ${experience}</p>
+          <p>Our HR team will contact you soon.</p>
+          <br/>
+          <p>Regards,<br/>CeiTCS Team</p>
+        `,
+      });
 
-    if (!req.files?.certificate?.[0] || !req.files?.resume?.[0]) {
-      return res.status(400).json({ error: 'Certificate and Resume are required' });
+      fs.unlinkSync(certificate.path);
+      fs.unlinkSync(resume.path);
+
+      res.status(201).json({
+        message: "Application submitted and email sent",
+      });
+    } catch (err) {
+      console.error("❌ Application error:", err);
+      res.status(500).json({ error: "Application submission failed" });
     }
-
-    const certificate = req.files.certificate[0];
-    const resume = req.files.resume[0];
-
-    const newApplication = new Application({
-      name,
-      email,
-      position,
-      experience,
-      certificate: {
-        data: fs.readFileSync(certificate.path),
-        contentType: certificate.mimetype,
-        filename: certificate.originalname,
-      },
-      resume: {
-        data: fs.readFileSync(resume.path),
-        contentType: resume.mimetype,
-        filename: resume.originalname,
-      },
-    });
-
-    await newApplication.save();
-
-    // Optionally delete files after saving to DB
-    fs.unlinkSync(certificate.path);
-    fs.unlinkSync(resume.path);
-
-    res.status(200).json({ message: 'Application submitted successfully' });
-  } catch (err) {
-    console.error('Error saving application:', err);
-    res.status(500).json({ error: 'Error saving application' });
   }
-});
+);
 
-// Start server
+/* -------------------- SERVER -------------------- */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🚀 Server running on http://localhost:${PORT}`)
+);
