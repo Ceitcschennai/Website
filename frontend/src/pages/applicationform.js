@@ -82,7 +82,7 @@ const ApplicationForm = () => {
       data.append("resume", formData.resume);
 
       await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/api/applications`,
+        "https://website-97if.vercel.app/api/applications",
         data
       );
 
@@ -119,7 +119,7 @@ const ApplicationForm = () => {
         <input type="file" name="certificate" required onChange={handleChange} />
         <input type="file" name="resume" required onChange={handleChange} />
 
-        <button disabled={loading}>
+        <button type="submit" disabled={loading}>
           {loading ? "Submitting..." : "Submit"}
         </button>
       </form>
