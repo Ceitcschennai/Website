@@ -89,7 +89,6 @@ const ApplicationForm = () => {
       setSubmitted(true);
       formRef.current.reset();
       setExperience("");
-
       setTimeout(() => setSubmitted(false), 3000);
     } catch (err) {
       alert("❌ Submission failed");
@@ -135,8 +134,18 @@ const ApplicationForm = () => {
           setSelected={setExperience}
         />
 
-        <input type="file" name="certificate" required onChange={handleChange} />
-        <input type="file" name="resume" required onChange={handleChange} />
+        <input
+          type="file"
+          name="certificate"
+          required
+          onChange={handleChange}
+        />
+        <input
+          type="file"
+          name="resume"
+          required
+          onChange={handleChange}
+        />
 
         <button disabled={loading}>
           {loading ? "Submitting..." : "Submit"}
