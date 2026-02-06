@@ -80,11 +80,8 @@ const ApplicationForm = () => {
       data.append("experience", experience);
       data.append("certificate", formData.certificate);
       data.append("resume", formData.resume);
+await axios.post("/api/applications", data);
 
-      await axios.post(
-  "https://website-97if.vercel.app/api/applications",
-  data
-);
 
       setSubmitted(true);
       formRef.current.reset();
