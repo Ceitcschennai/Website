@@ -31,13 +31,14 @@ nav ul li a.active {
 }
 
 .quote-btn {
-  padding: 10px 20px;
+  padding: 20px 30px;
   border: 2px solid purple;
   background: white;
   color: #800080;
   font-weight: bold;
   border-radius: 20px;
   cursor: pointer;
+  margin-left: 920px;
 }
 
 .quote-btn:hover {
@@ -62,6 +63,7 @@ nav ul li a.active {
 
   .quote-btn {
     margin-top: 10px;
+    margin-left: 520px;
   }
 
   .hero-content h1 {
